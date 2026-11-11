@@ -151,6 +151,11 @@
   .idea-acciones { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .idea-acciones select { width: auto; padding: 7px 10px; font-size: 13.5px; }
 
+  .cuenta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; max-width: 900px; }
+  .cuenta-form { display: grid; gap: 16px; align-content: start; }
+  .cuenta-form h3, .cuenta-hola h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+  .cuenta-hola { display: grid; gap: 16px; justify-items: start; }
+  .cuenta-grid[hidden], .cuenta-hola[hidden] { display: none; }
   .contacto-form { display: grid; gap: 16px; max-width: 560px; }
   .contacto-form .fila { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   footer { border-top: 1px solid var(--cafe); padding: 44px 0 64px; }
@@ -317,6 +322,7 @@
     #semana { border-radius: 32px 32px 0 0; }
     section.bloque { padding: 64px 0; }
     .contacto-form .fila, .campos .fila { grid-template-columns: 1fr; }
+    .cuenta-grid { grid-template-columns: 1fr; }
     .rango { min-width: 0; flex: 1; }
     .planner-nav { width: 100%; }
   }
@@ -329,6 +335,7 @@
     <a class="brand" href="#inicio">BarrePlan</a>
     <nav aria-label="Principal">
       <a href="#inicio">Inicio</a>
+      <a href="#cuenta">Cuenta</a>
       <a href="#como-funciona">Cómo funciona</a>
       <a href="#contacto">Contacto</a>
     </nav>
@@ -374,6 +381,31 @@
   </section>
 
   <div class="cinta" aria-hidden="true"><div class="cinta-pista"><div class="cinta-fila"><span>Instagram</span><span>TikTok</span><span>Stories</span><span>Copy</span><span>Imagen</span><span>Lunes a domingo</span><span>Listo para publicar</span></div><div class="cinta-fila"><span>Instagram</span><span>TikTok</span><span>Stories</span><span>Copy</span><span>Imagen</span><span>Lunes a domingo</span><span>Listo para publicar</span></div></div></div>
+
+  <section id="cuenta" class="bloque">
+    <div class="wrap">
+      <h2>Tu cuenta</h2>
+      <div class="cuenta-grid" id="cuenta-formularios">
+        <form class="cuenta-form" id="form-registro" novalidate>
+          <h3>Crear cuenta</h3>
+          <div><label for="r-nombre">Nombre</label><input type="text" id="r-nombre" required autocomplete="name"></div>
+          <div><label for="r-email">Correo</label><input type="email" id="r-email" required autocomplete="email"></div>
+          <div><label for="r-password">Contraseña</label><input type="password" id="r-password" required minlength="6" autocomplete="new-password"></div>
+          <div><button class="btn" type="submit">Crear cuenta</button><p class="form-msg" id="msg-registro" role="alert"></p></div>
+        </form>
+        <form class="cuenta-form" id="form-login" novalidate>
+          <h3>Iniciar sesión</h3>
+          <div><label for="l-email">Correo</label><input type="email" id="l-email" required autocomplete="email"></div>
+          <div><label for="l-password">Contraseña</label><input type="password" id="l-password" required autocomplete="current-password"></div>
+          <div><button class="btn" type="submit">Iniciar sesión</button><p class="form-msg" id="msg-login" role="alert"></p></div>
+        </form>
+      </div>
+      <div class="cuenta-hola" id="cuenta-sesion" hidden>
+        <h3 id="cuenta-saludo"></h3>
+        <button class="btn btn-suave" type="button" id="btn-cerrar-sesion">Cerrar sesión</button>
+      </div>
+    </div>
+  </section>
 
   <section id="como-funciona" class="bloque">
     <div class="wrap">
@@ -948,6 +980,139 @@
 
   cargar();
   render();
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
+<script>
+/* ---------- Cuenta: registro e inicio de sesión con Supabase Auth ---------- */
+(function () {
+  var SUPABASE_URL = "https://bwziwlrzdysuncbxjuwb.supabase.co";
+  var SUPABASE_PUBLISHABLE_KEY = "sb_publishable_tOME4DVzmEDixPhzr74fuA_PE9TmYSs";
+  var COLOR_ERROR = "#9a4a3f";
+
+  var formularios = document.getElementById("cuenta-formularios");
+  var vistaSesion = document.getElementById("cuenta-sesion");
+  var saludo = document.getElementById("cuenta-saludo");
+  var formRegistro = document.getElementById("form-registro");
+  var formLogin = document.getElementById("form-login");
+  var msgRegistro = document.getElementById("msg-registro");
+  var msgLogin = document.getElementById("msg-login");
+
+  function mostrarError(el, texto) { el.style.color = COLOR_ERROR; el.textContent = texto; }
+  function limpiar(el) { el.style.color = ""; el.textContent = ""; }
+
+  if (!window.supabase || !window.supabase.createClient) {
+    mostrarError(msgRegistro, "No se pudo cargar el servicio de cuentas. Recarga la página.");
+    mostrarError(msgLogin, "No se pudo cargar el servicio de cuentas. Recarga la página.");
+    return;
+  }
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+  function mostrarFormularios() {
+    vistaSesion.hidden = true;
+    formularios.hidden = false;
+  }
+  function mostrarSesion(nombre) {
+    saludo.textContent = "Hola, " + nombre;
+    formularios.hidden = true;
+    vistaSesion.hidden = false;
+    formRegistro.reset();
+    formLogin.reset();
+    limpiar(msgRegistro);
+    limpiar(msgLogin);
+  }
+
+  function traducirError(error) {
+    var code = error && error.code;
+    var m = (error && error.message) || "";
+    if (code === "user_already_exists" || /already registered/i.test(m)) return "Ese correo ya está registrado. Inicia sesión.";
+    if (code === "weak_password" || /password/i.test(m) && /6/.test(m)) return "La contraseña debe tener al menos 6 caracteres.";
+    if (code === "invalid_credentials" || /invalid login credentials/i.test(m)) return "Correo o contraseña incorrectos.";
+    if (code === "email_address_invalid" || /email/i.test(m) && /invalid/i.test(m)) return "Escribe un correo válido.";
+    return "Algo salió mal: " + (m || "inténtalo de nuevo.");
+  }
+
+  async function leerNombre(user) {
+    var res = await sb.from("perfiles").select("nombre").eq("id", user.id).maybeSingle();
+    if (res.data && res.data.nombre) return res.data.nombre;
+    return (user.user_metadata && user.user_metadata.nombre) || user.email;
+  }
+
+  function ocupado(form, si) {
+    var b = form.querySelector('button[type="submit"]');
+    b.disabled = si;
+  }
+
+  formRegistro.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var nombre = document.getElementById("r-nombre").value.trim();
+    var email = document.getElementById("r-email").value.trim();
+    var password = document.getElementById("r-password").value;
+    limpiar(msgRegistro);
+    limpiar(msgLogin);
+    if (!nombre || !email || !password) return mostrarError(msgRegistro, "Completa nombre, correo y contraseña.");
+    if (!document.getElementById("r-email").checkValidity()) return mostrarError(msgRegistro, "Escribe un correo válido.");
+    if (password.length < 6) return mostrarError(msgRegistro, "La contraseña debe tener al menos 6 caracteres.");
+
+    ocupado(formRegistro, true);
+    try {
+      var res = await sb.auth.signUp({ email: email, password: password, options: { data: { nombre: nombre } } });
+      if (res.error) return mostrarError(msgRegistro, traducirError(res.error));
+      var user = res.data.user;
+      if (!user || (user.identities && user.identities.length === 0)) {
+        return mostrarError(msgRegistro, "Ese correo ya está registrado. Inicia sesión.");
+      }
+      if (!res.data.session) {
+        return mostrarError(msgRegistro, "Tu cuenta se creó, pero no se pudo iniciar sesión. Intenta iniciar sesión.");
+      }
+      var ins = await sb.from("perfiles").insert({ id: user.id, nombre: nombre });
+      if (ins.error) {
+        await sb.auth.signOut();
+        return mostrarError(msgRegistro, "No se pudo guardar tu perfil: " + ins.error.message);
+      }
+      mostrarSesion(nombre);
+    } catch (err) {
+      mostrarError(msgRegistro, "No se pudo conectar. Revisa tu internet e inténtalo de nuevo.");
+    } finally {
+      ocupado(formRegistro, false);
+    }
+  });
+
+  formLogin.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var email = document.getElementById("l-email").value.trim();
+    var password = document.getElementById("l-password").value;
+    limpiar(msgLogin);
+    limpiar(msgRegistro);
+    if (!email || !password) return mostrarError(msgLogin, "Escribe tu correo y contraseña.");
+
+    ocupado(formLogin, true);
+    try {
+      var res = await sb.auth.signInWithPassword({ email: email, password: password });
+      if (res.error) return mostrarError(msgLogin, traducirError(res.error));
+      mostrarSesion(await leerNombre(res.data.user));
+    } catch (err) {
+      mostrarError(msgLogin, "No se pudo conectar. Revisa tu internet e inténtalo de nuevo.");
+    } finally {
+      ocupado(formLogin, false);
+    }
+  });
+
+  document.getElementById("btn-cerrar-sesion").addEventListener("click", async function () {
+    await sb.auth.signOut();
+    mostrarFormularios();
+  });
+
+  // Si la sesión se cierra o expira (también en otra pestaña), regresa a los formularios.
+  sb.auth.onAuthStateChange(function (evento) {
+    if (evento === "SIGNED_OUT") mostrarFormularios();
+  });
+
+  // Al recargar: si ya hay sesión guardada, saluda.
+  sb.auth.getSession().then(async function (res) {
+    var session = res.data && res.data.session;
+    if (session) mostrarSesion(await leerNombre(session.user));
+  });
 })();
 </script>
 </body>
